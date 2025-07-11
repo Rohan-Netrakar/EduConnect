@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Student Engagement Client</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+      background-color: #f5f5f5;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    #student-info {
+      font-size: 1.2em;
+      margin-bottom: 20px;
+    }
+    #video-container {
+      margin: 20px auto;
+      width: 90%;
+      max-width: 400px;
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    #video {
+      width: 100%;
+      display: block;
+      transform: scaleX(-1); /* Mirror effect */
+    }
+    #engagement-display {
+      margin: 25px auto;
+      width: 90%;
+      max-width: 300px;
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    #engagement-meter {
+      height: 25px;
+      background: #eee;
+      border-radius: 12px;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    #engagement-bar {
+      height: 100%;
+      width: 0%;
+      transition: width 0.5s ease;
+    }
+    #engagement-score {
+      font-size: 1.5em;
+      font-weight: bold;
+      margin: 10px 0;
+    }
+    #status {
+      margin: 20px auto;
+      padding: 10px;
+      border-radius: 5px;
+      width: 90%;
+      max-width: 400px;
+    }
+    .connected {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .disconnected {
+      background: #ffebee;
+      color: #c62828;
+    }
+    #intervention-alert {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #fff3e0;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.16);
+      z-index: 100;
+      display: none;
+      max-width: 80%;
+    }
+    #face-container, #debug-container {
+      margin: 20px auto;
+      width: 90%;
+      max-width: 300px;
+    }
+    #face-container img, #debug-container img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+    .section-title {
+      margin-bottom: 5px;
+      font-size: 1.1em;
+      color: #555;
+    }
+    #stop-btn {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 1em;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 20px 0;
+      transition: background-color 0.3s;
+    }
+    #stop-btn:hover {
+      background-color: #d32f2f;
+    }
+    #stop-btn:disabled {
+      background-color: #9e9e9e;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div id="intervention-alert"></div>
+  
+  <h1>Classroom Engagement</h1>
+  <div id="student-info">
+    Hello, <strong><span id="student-name"><%= studentName %></span></strong>
+  </div>
+  
+  <div id="video-container">
+    <video id="video" autoplay playsinline></video>
+  </div>
+  
+  <div id="engagement-display">
+    <h3>Your Engagement Level</h3>
+    <div id="engagement-meter">
+      <div id="engagement-bar"></div>
+    </div>
+    <div id="engagement-score">0%</div>
+    <small>This updates automatically</small>
+  </div>
+
+  <div id="face-container">
+    <div class="section-title">Captured Face</div>
+    <img id="face-image" src="" alt="Face Image">
+  </div>
+
+  <div id="debug-container">
+    <div class="section-title">Debug View</div>
+    <img id="debug-image" src="" alt="Debug Image">
+  </div>
+
+  <div id="status" class="disconnected">Connecting to classroom...</div>
+  
+  <button id="stop-btn">Stop Session</button>
+  
+  <script>
+    // Get elements
+    const video = document.getElementById('video');
+    const statusDiv = document.getElementById('status');
+    const interventionAlert = document.getElementById('intervention-alert');
+    const faceImageEl = document.getElementById('face-image');
+    const debugImageEl = document.getElementById('debug-image');
+    const engagementBar = document.getElementById('engagement-bar');
+    const engagementScore = document.getElementById('engagement-score');
+    const stopBtn = document.getElementById('stop-btn');
+    
+    // Get parameters from template
+    const studentId = '<%= studentId %>';
+    const classId = '<%= classId %>';
+    const studentName = '<%= studentName %>';
+    
+    // Initialize socket
+    const socket = io();
+    let stream = null;
+    let captureInterval = null;
+
+    async function setupCamera() {
+      try {
+        statusDiv.textContent = 'Accessing camera...';
+        
+        // Get camera with basic constraints
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: {
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          }
+        });
+        
+        video.srcObject = stream;
+        statusDiv.className = 'connected';
+        statusDiv.textContent = 'Connected to classroom';
+        
+        // Start frame capture after camera is ready
+        startFrameCapture();
+      } catch (err) {
+        console.error('Camera error:', err);
+        statusDiv.className = 'disconnected';
+        statusDiv.textContent = 'Camera access denied';
+      }
+    }
+
+    function startFrameCapture() {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Capture frames at 1 FPS
+      captureInterval = setInterval(() => {
+        if (!stream || !video.videoWidth) return;
+        
+        try {
+          // Set canvas dimensions
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          
+          // Draw mirrored video
+          ctx.save();
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+          ctx.restore();
+          
+          // Convert to JPEG
+          const imageData = canvas.toDataURL('image/jpeg', 0.8);
+          
+          // Send to server
+          socket.emit('student-frame', {
+            classId: classId,
+            studentId: studentId,
+            imageData: imageData
+          });
+        } catch (e) {
+          console.error('Frame capture error:', e);
+        }
+      }, 1000); // 1 frame per second
+    }
+
+    function stopSession() {
+      // Disable button
+      stopBtn.disabled = true;
+      stopBtn.textContent = 'Session Ended';
+      
+      // Stop camera stream
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+      
+      // Stop frame capture interval
+      if (captureInterval) {
+        clearInterval(captureInterval);
+      }
+      
+      // Notify server
+      socket.emit('student-stop', { classId, studentId });
+      
+      // Update status
+      statusDiv.className = 'disconnected';
+      statusDiv.textContent = 'Session ended. You can close this window.';
+      
+      // Hide video and engagement displays
+      document.getElementById('video-container').style.display = 'none';
+      document.getElementById('engagement-display').style.display = 'none';
+      document.getElementById('face-container').style.display = 'none';
+      document.getElementById('debug-container').style.display = 'none';
+    }
+
+    // Initialize connection
+    socket.on('connect', () => {
+      console.log('Connected to server');
+      socket.emit('join-classroom', { 
+        classId: classId, 
+        studentId: studentId 
+      });
+      setupCamera();
+    });
+
+    // Handle engagement updates
+    socket.on('engagement-update', (data) => {
+      const engagement = data.engagement;
+      const percentage = Math.round(engagement * 100);
+      
+      // Update engagement bar and score
+      engagementBar.style.width = `${percentage}%`;
+      engagementScore.textContent = `${percentage}%`;
+      
+      // Color coding based on engagement level
+      if (engagement >= 0.7) {
+        engagementBar.style.backgroundColor = '#4CAF50';
+      } else if (engagement >= 0.5) {
+        engagementBar.style.backgroundColor = '#FFC107';
+      } else {
+        engagementBar.style.backgroundColor = '#F44336';
+      }
+
+      // Update face and debug images with error handling
+      if (data.face_image) {
+        faceImageEl.src = data.face_image;
+        faceImageEl.onerror = () => {
+          console.log('Failed to load face image');
+          faceImageEl.style.display = 'none';
+        };
+        faceImageEl.style.display = 'block';
+      }
+      if (data.debug_image) {
+        debugImageEl.src = data.debug_image;
+        debugImageEl.onerror = () => {
+          console.log('Failed to load debug image');
+          debugImageEl.style.display = 'none';
+        };
+        debugImageEl.style.display = 'block';
+      }
+    });
+    
+    // Handle intervention alerts
+    socket.on('intervention', (data) => {
+      interventionAlert.textContent = data.message;
+      interventionAlert.style.display = 'block';
+      
+      // Hide after 5 seconds
+      setTimeout(() => {
+        interventionAlert.style.display = 'none';
+      }, 5000);
+    });
+    
+    // Handle class stopped by teacher
+    socket.on('class-stopped', () => {
+      stopSession();
+      statusDiv.textContent = 'Class has ended. You can close this window.';
+    });
+    
+    // Handle disconnection
+    socket.on('disconnect', () => {
+      statusDiv.className = 'disconnected';
+      statusDiv.textContent = 'Disconnected from classroom';
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    });
+
+    // Stop button handler
+    stopBtn.addEventListener('click', stopSession);
+
+    // Initialize the page
+    document.addEventListener('DOMContentLoaded', () => {
+      // Set initial values
+      engagementBar.style.width = '0%';
+      engagementScore.textContent = '0%';
+      engagementBar.style.backgroundColor = '#F44336';
+    });
+  </script>
+</body>
+</html>

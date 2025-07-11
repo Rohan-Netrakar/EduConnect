@@ -1,0 +1,15 @@
+{
+  "camera": {
+    "width": 1280,
+    "height": 720,
+    "fps": 15
+  },
+  "engagement_thresholds": {
+    "high": 0.7,
+    "medium": 0.5
+  },
+  "intervention_settings": {
+    "min_duration": 10,
+    "cooldown": 60
+  }
+}

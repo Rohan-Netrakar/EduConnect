@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Classroom Engagement Dashboard - <%= className %></title>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/js/dashboard.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+  <style>
+    /* Add virtualization styles */
+    .virtual-grid-container {
+      height: calc(100vh - 300px);
+      overflow-y: auto;
+      position: relative;
+      border: 1px solid #e0e0e0;
+      border-radius: var(--border-radius);
+      background: #f8f9fa;
+      margin-bottom: 2rem;
+    }
+    
+    .virtual-grid-content {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+    }
+    
+    .virtual-grid-item {
+      position: absolute;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+    }
+    
+    .student-card {
+      height: 450px; /* Increased height for graph */
+      display: flex;
+      flex-direction: column;
+      background: white;
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: var(--transition);
+      position: relative;
+    }
+    
+    .card-body {
+      flex: 1;
+      overflow-y: auto;
+    }
+    
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    
+    #student-search {
+      padding: 10px 15px;
+      border: 1px solid var(--light-gray);
+      border-radius: 6px;
+      width: 250px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.9rem;
+      transition: var(--transition);
+    }
+    
+    #student-search:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+    }
+    
+    #sort-engagement {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    #sort-engagement:hover {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+    }
+    
+    .no-students {
+      text-align: center;
+      padding: 40px;
+      color: var(--gray);
+      font-style: italic;
+    }
+    
+    /* Student graph styles */
+    .student-graph-container {
+      margin-top: 15px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      height: 120px;
+    }
+    
+    .student-graph-container h4 {
+      margin: 0 0 10px 0;
+      font-size: 0.9rem;
+      color: #495057;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .student-graph-container canvas {
+      width: 100% !important;
+      height: 100px !important;
+    }
+    
+    @media (max-width: 768px) {
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      #student-search {
+        width: 100%;
+      }
+      
+      .virtual-grid-container {
+        height: calc(100vh - 500px); /* Adjust for mobile */
+      }
+      
+      .student-card {
+        height: 500px; /* Taller card for mobile */
+      }
+    }
+    /* Add disconnected badge style */
+    .disconnected-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #ef476f;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <header>
+      <div class="header-left">
+        <h1>Classroom Engagement Dashboard</h1>
+        <div class="class-info-header">
+          <div class="class-info-item">
+            <i class="fas fa-book" aria-hidden="true"></i>
+            <span>Class: <%= className %></span>
+          </div>
+          <div class="class-info-item">
+            <i class="fas fa-fingerprint" aria-hidden="true"></i>
+            <span>ID: <%= classId %></span>
+          </div>
+          <div class="class-info-item">
+            <i class="far fa-calendar" aria-hidden="true"></i>
+            <span>Date: <%= date %></span>
+          </div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="stop-class-btn" aria-label="Stop class session">
+          <i class="fas fa-stop-circle" aria-hidden="true"></i>
+          Stop Class
+        </button>
+      </div>
+    </header>
+    
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <h2><i class="fas fa-qrcode" aria-hidden="true"></i> Student Onboarding</h2>
+        <div class="qr-container">
+          <img id="class-qr" src="/qr?classId=<%= classId %>" alt="QR code for class registration">
+        </div>
+        <div class="join-link-container">
+          <label>Share this link:</label>
+          <span id="join-link"><%= joinUrl %></span>
+        </div>
+        <div class="student-count">
+          <i class="fas fa-users" aria-hidden="true"></i>
+          <span>Students joined: <span id="student-count">0</span></span>
+        </div>
+      </div>
+      
+      <div class="sidebar-section">
+        <h2><i class="fas fa-plug" aria-hidden="true"></i> Student Connections</h2>
+        <div id="student-connections" aria-live="polite">
+          <!-- Will be populated by JavaScript -->
+        </div>
+      </div>
+      
+      <div class="sidebar-section student-face-logs-section">
+        <h2><i class="fas fa-history" aria-hidden="true"></i> Student Face Logs</h2>
+        <div id="student-face-logs" aria-live="polite">
+          <div class="no-face-logs">No face logs yet. Images will appear as students join.</div>
+        </div>
+      </div>
+    </aside>
+    
+    <main class="main-content">
+      <div class="content-header">
+        <h2>Student Engagement</h2>
+        <div class="controls">
+          <div class="search-container">
+            <label for="student-search" class="sr-only">Search students</label>
+            <input type="text" id="student-search" placeholder="Search students...">
+          </div>
+          <button id="sort-engagement">
+            <i class="fas fa-sort-amount-down"></i>
+            Sort by Engagement
+          </button>
+        </div>
+      </div>
+      
+      <!-- Virtualized grid container -->
+      <div class="virtual-grid-container" id="virtual-grid">
+        <div class="virtual-grid-content" id="virtual-grid-content">
+          <div class="no-students">No students in this class yet. Students will appear as they join.</div>
+        </div>
+      </div>
+      
+      <div id="analytics">
+        <div class="analytics-header">
+          <h3>Class Engagement Analytics</h3>
+        </div>
+        <div class="chart-container">
+          <canvas id="engagement-chart" aria-label="Engagement analytics chart"></canvas>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <template id="student-card-template">
+    <div class="student-card">
+      <div class="engagement-score" aria-label="Engagement score">0%</div>
+      <div class="card-header">
+        <div class="face-preview">
+          <img class="face-image" src="" alt="Student face preview">
+        </div>
+        <div>
+          <h3 class="student-name">Student Name</h3>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="engagement-display">
+          <div class="engagement-label">
+            <span>Engagement Level</span>
+          </div>
+          <div class="engagement-meter" role="meter" aria-valuemin="0" aria-valuemax="100">
+            <div class="engagement-bar"></div>
+          </div>
+        </div>
+        
+        <!-- Individual student graph container -->
+        <div class="student-graph-container">
+          <h4><i class="fas fa-chart-line" aria-hidden="true"></i> Engagement Timeline</h4>
+          <canvas class="student-chart" height="100"></canvas>
+        </div>
+        
+        <div class="intervention-panel">
+          <h4><i class="fas fa-lightbulb" aria-hidden="true"></i> Suggested Interventions</h4>
+          <ul class="intervention-list">
+            <li>Ask direct question</li>
+            <li>Provide simplified example</li>
+            <li>Start quick group discussion</li>
+            <li>Check for understanding</li>
+          </ul>
+          <button class="action-btn" aria-label="Apply intervention">
+            <i class="fas fa-bolt" aria-hidden="true"></i>
+            Apply Intervention
+          </button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="connection-template">
+    <div class="connection-item">
+      <span class="student-name"></span>
+      <span class="connection-status">
+        <span class="status-indicator">●</span>
+        <span class="status-text">Connected</span>
+      </span>
+    </div>
+  </template>
+  
+  <template id="face-log-template">
+    <div class="student-face-log">
+      <h3><i class="fas fa-user" aria-hidden="true"></i> <span class="student-name"></span></h3>
+      <div class="face-log-container"></div>
+    </div>
+  </template>
+</body>
+</html>
