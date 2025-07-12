@@ -174,7 +174,7 @@ EduConnect/
 ## 📄 Documentation & Resources
 
 - 🎥 [Demo Video](https://drive.google.com/file/d/1J5grf7XYA96pSG1emQAwcPQXlCZgs-v7/view?usp=sharing)
-- 🎥 [Demo video from student view](https://drive.google.com/file/d/14M3A0G6uDvFrEis3srFXbZqNe4ocFXcq/view?usp=sharing)
+- 🎥 [Demo video from student view](https://drive.google.com/file/d/1JZee_wEQPHDJK0KqpdX8xbUu17FLi5bv/view?usp=sharing)
 - 📊 [Presentation Slides](https://drive.google.com/file/d/1f8imiKVats_d6InJOcoTGlsjBgMqdCSw/view?usp=sharing)
 - 📕 [Final Report](https://drive.google.com/file/d/1a7pOF9uHK9I5A07LuXslpUvaE9S1wcRX/view?usp=sharing)
 - ☁️ [Cloudflare Tunnel Setup Guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps)
