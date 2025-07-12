@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Add cache busting to QR code
   const qrImg = document.getElementById('class-qr');
   if (qrImg) {
-    qrImg.src = `${qrImg.src}?t=${Date.now()}`;
+    qrImg.src = `${qrImg.src}`;
   }
 
   // Get class ID from the page
