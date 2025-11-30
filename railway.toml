@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "node app.js"
+startCommand = "node server.js"
 
 [phases.setup]
 nixPkgs = ["python3", "pip"]
