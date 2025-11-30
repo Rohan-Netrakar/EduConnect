@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 const classSessions = new Map();
 
 // Python AI Processor
-const pythonProcess = spawn("python", [
+const pythonProcess = spawn(process.env.PYTHON || "python3", [
   path.join(__dirname, "engagement_analyzer.py"),
 ]);
 // const pythonPath = path.join(__dirname, "venv", "Scripts", "python.exe");
