@@ -1,0 +1,11 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "node app.js"
+
+[phases.setup]
+nixPkgs = ["python3", "pip"]
+
+[phases.build]
+cmds = ["pip install -r requirements.txt"]
